@@ -375,6 +375,9 @@ export function SignIn({ next }: { next: string }) {
             name="email"
             autoComplete="email"
             type="email"
+            pattern="[^@\s]+@[oO][rR][aA][cC][lL][eE]\.[cC][oO][mM]"
+            title="Use your @oracle.com email address."
+            placeholder="you@oracle.com"
             required
             value={address}
             onChange={(e) => setAddress(e.target.value)}

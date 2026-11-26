@@ -18,6 +18,7 @@ const email = z
   .trim()
   .toLowerCase()
   .email("Enter a valid email address.")
+  .endsWith("@oracle.com", "Use your @oracle.com email address.")
   .max(254);
 const details = {
   name: short,
@@ -126,7 +127,7 @@ export async function authenticate(
   if (demo)
     return { error: "Email sign-in is available when Supabase is connected." };
   const address = email.safeParse(data.get("email"));
-  if (!address.success) return { error: "Enter a valid email address." };
+  if (!address.success) return { error: address.error.issues[0].message };
   const client = await supabase();
   if (mode === "send") {
     const { error } = await client.auth.signInWithOtp({ email: address.data });
