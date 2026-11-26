@@ -1,4 +1,5 @@
 import { CalendarDays, Gift, MapPin } from "lucide-react";
+import { DateSecret } from "./easter-eggs";
 
 const event = {
   date: "2026-12-14",
@@ -9,7 +10,7 @@ const event = {
 
 export function EventDetails({ compact = false }: { compact?: boolean }) {
   if (compact) return <div className="event-summary" aria-label="Event date and location">
-    <p className="event-summary-date"><CalendarDays size={21} aria-hidden="true" /><time dateTime={event.date}>{event.dateLabel}</time></p>
+    <p className="event-summary-date"><DateSecret date={event.date} label={event.dateLabel} withIcon /></p>
     <p className="event-summary-venue"><MapPin size={20} aria-hidden="true" /><span><strong>{event.building}</strong><span className="event-summary-room">{event.location}</span></span></p>
   </div>;
   return <section className="panel event-details" aria-labelledby="event-details-title">
@@ -17,7 +18,7 @@ export function EventDetails({ compact = false }: { compact?: boolean }) {
     <dl className="event-details-grid">
       <div>
         <dt><CalendarDays size={17} aria-hidden="true" />Date</dt>
-        <dd><time dateTime={event.date}>{event.dateLabel}</time></dd>
+        <dd><DateSecret date={event.date} label={event.dateLabel} /></dd>
       </div>
       <div>
         <dt><Gift size={17} aria-hidden="true" />Gift budget</dt>

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EventDetails } from "@/components/event-details";
+import { GiftSurprise } from "@/components/easter-eggs";
 const steps = [
   {
     icon: UsersRound,
@@ -77,7 +78,7 @@ export default async function Home() {
           <EventDetails compact />
           <div className="postcard">
             <div className="postcard-sheet">
-              <div className="postcard-art">
+              <GiftSurprise>
                 <Image
                   src="/gifts.webp"
                   alt="Holiday postcard with three ribbon-wrapped gifts and pine sprigs"
@@ -85,7 +86,7 @@ export default async function Home() {
                   priority
                   sizes="(max-width: 760px) 88vw, 44vw"
                 />
-              </div>
+              </GiftSurprise>
               <div className="stamp" aria-hidden="true">
                 <Snowflake size={24} />
               </div>

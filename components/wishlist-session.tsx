@@ -30,6 +30,8 @@ export function WishlistEditor({ initiallySaved = false }: { initiallySaved?: bo
   const { draft, saved, setDraft, markSaved, pending, startTransition } = useWishlist();
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(initiallySaved);
+  const successfulSaves = useRef(0);
+  const [successMessage, setSuccessMessage] = useState("Wishlist saved.");
   return <form action={act.bind(null, "wishlist")} className="form-stack" onSubmit={event => {
     event.preventDefault();
     if (pending) return;
@@ -39,7 +41,11 @@ export function WishlistEditor({ initiallySaved = false }: { initiallySaved?: bo
       try {
         const result = await saveWishlist(fd);
         if (result.error) setError(result.error);
-        else if (result.wishlist !== undefined) { markSaved(result.wishlist); setSuccess(true); }
+        else if (result.wishlist !== undefined) {
+          markSaved(result.wishlist); setSuccess(true);
+          successfulSaves.current += 1;
+          setSuccessMessage(successfulSaves.current % 3 === 0 ? "Wishlist saved. Noted. Forwarded to the North Pole. 🎅" : "Wishlist saved.");
+        }
       } catch (cause) { unstable_rethrow(cause); setError("Could not save your wishlist. Your changes are still here. Please try again."); }
     });
   }}>
@@ -49,7 +55,7 @@ export function WishlistEditor({ initiallySaved = false }: { initiallySaved?: bo
     {draft !== saved && <p className="hint" role="status">You have unsaved wishlist changes.</p>}
     <Button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Saving…" : "Save wishlist"}</Button>
     {error && <p className="notice error" role="alert">{error}</p>}
-    {success && <p className="notice" role="status">Wishlist saved.</p>}
+    {success && <p className="notice" role="status">{successMessage}</p>}
   </form>;
 }
 export function SignOutControl() {

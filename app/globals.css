@@ -443,7 +443,7 @@ p {
 .footer .brand-mark svg {
   width: 17px;
 }
-.footer-inner > svg {
+.footer-secret {
   margin-left: auto;
   color: var(--body);
 }
@@ -1079,4 +1079,63 @@ blockquote {
 @media (max-width: 760px) {
   .event-details-grid { grid-template-columns: 1fr; gap: 16px; }
   .event-details-grid > div + div { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 16px; }
+}
+
+.brand-wrap, .footer-secret, .date-secret { position: relative; display: inline-flex; }
+.brand-wrap { flex-shrink: 0; }
+.egg-note {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  z-index: 8;
+  width: 265px;
+  max-width: calc(100vw - 40px);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 8px 28px #10271c20;
+  font: 400 14px/1.55 "DM Sans", Arial, sans-serif;
+  letter-spacing: normal;
+  white-space: normal;
+  text-align: left;
+}
+.footer .egg-note { top: auto; bottom: calc(100% + 12px); }
+.footer-secret .egg-note { left: auto; right: 0; }
+.footer-secret-trigger {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--body);
+}
+.footer-secret-trigger:hover { background: var(--sage); color: var(--ink); }
+.date-secret-trigger { display: inline-flex; align-items: center; gap: 12px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }
+.date-checklist { display: grid; gap: 10px; }
+.date-checklist strong { font-size: 15px; }
+.date-checklist label { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 14px; font-weight: 400; cursor: pointer; }
+.date-checklist input { width: 17px; height: 17px; min-height: 17px; margin: 0; padding: 0; accent-color: var(--focus); }
+.gift-surprise { display: block; width: 100%; padding: 0; background: #fcf2d9; text-align: inherit; isolation: isolate; }
+.gift-surprise > img { transition: opacity 250ms ease; }
+.gift-surprise.is-open > img { opacity: 0.4; }
+.gift-reveal { position: absolute; left: 50%; bottom: 12px; width: 160px; height: 190px; transform: translateX(-50%); opacity: 0; pointer-events: none; transition: opacity 200ms ease; }
+.is-open .gift-reveal { opacity: 1; }
+.santa-peek { position: absolute; left: 22px; bottom: 53px; z-index: 1; width: 116px; height: 138px; transform: translateY(94px); opacity: 0; transition: transform 650ms ease, opacity 450ms ease; }
+.santa-peek svg { display: block; width: 100%; height: 100%; }
+.is-open .santa-peek { transform: translateY(0); opacity: 1; }
+.surprise-box { position: absolute; bottom: 0; left: 0; z-index: 2; width: 160px; height: 70px; overflow: hidden; border: 1px solid #934236; border-radius: 3px 3px 9px 9px; background: #b45443; box-shadow: inset 0 8px 0 #873e34, 0 5px 12px #40301c26; }
+.surprise-lid { position: absolute; left: -8px; bottom: 64px; z-index: 3; width: 176px; height: 20px; border: 1px solid #934236; border-radius: 4px; background: #c06850; transform-origin: left bottom; transition: transform 650ms ease; }
+.is-open .surprise-lid { transform: translate(-65px, -58px) rotate(-24deg); }
+.surprise-ribbon { position: absolute; left: calc(50% - 12px); top: 0; width: 24px; height: 100%; background: #f2d398; border-inline: 1px solid #d1ab66; }
+.is-open .surprise-box { animation: gift-nudge 450ms ease-in-out 1; }
+@keyframes gift-nudge { 0%, 100% { transform: rotate(0); } 35% { transform: rotate(-2deg); } 70% { transform: rotate(2deg); } }
+.gift-greeting { position: absolute; top: 12px; left: 50%; z-index: 4; width: max-content; max-width: calc(100% - 20px); transform: translateX(-50%); padding: 7px 12px; border-radius: 20px; background: #fff8e9; color: #204c3c; font-size: 13px; font-weight: 600; box-shadow: 0 2px 10px #40301c18; pointer-events: none; }
+@media (max-width: 420px) { .gift-reveal { transform: translateX(-50%) scale(0.8); transform-origin: bottom center; } }
+@media (prefers-reduced-motion: reduce) {
+  .gift-surprise *, .gift-surprise > img { animation: none !important; transition: none !important; }
 }

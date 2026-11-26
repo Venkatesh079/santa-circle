@@ -1,18 +1,31 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Gift, Moon, Sun, Menu, X, ArrowUpRight, TreePine } from "lucide-react";
+import { Gift, Moon, Sun, Menu, X, ArrowUpRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { SignOutControl } from "./wishlist-session";
+import { FooterSecret, SecretNote, useSecretReveal } from "./easter-eggs";
 export function Brand() {
+  const clicks = useRef({ count: 0, at: 0 });
+  const secret = useSecretReveal();
   return (
-    <Link className="brand" href="/">
-      <span className="brand-mark">
-        <Gift size={23} strokeWidth={1.8} />
-      </span>
-      Santa Circle
-    </Link>
+    <span className="brand-wrap">
+      <Link className="brand" href="/" onClick={event => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+        const now = Date.now();
+        clicks.current = { count: now - clicks.current.at <= 2000 ? clicks.current.count + 1 : 1, at: now };
+        if (clicks.current.count === 3) {
+          event.preventDefault(); clicks.current.count = 0; secret.show();
+        }
+      }}>
+        <span className="brand-mark">
+          <Gift size={23} strokeWidth={1.8} />
+        </span>
+        Santa Circle
+      </Link>
+      {secret.visible && <SecretNote>Santa’s watching… your wishlist 👀</SecretNote>}
+    </span>
   );
 }
 export function Header({ signedIn }: { signedIn: boolean }) {
@@ -84,7 +97,7 @@ export function Footer() {
     <footer className="footer">
       <div className="shell footer-inner">
         <Brand />
-        <TreePine size={18} aria-hidden="true" />
+        <FooterSecret />
         <Link href="/#how-it-works">How it works</Link>
       </div>
     </footer>
