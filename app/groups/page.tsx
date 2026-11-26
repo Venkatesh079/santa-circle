@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+import { canCreateGroup } from "@/lib/permissions";
 import Link from "next/link";
 import { ArrowRight, Gift, Plus } from "lucide-react";
 import { requireUser, call } from "@/lib/data";
@@ -9,7 +10,8 @@ import { ActionForm, Submit } from "@/components/forms";
 import { demo } from "@/lib/config";
 import { signOut } from "@/app/actions";
 export default async function Groups() {
-  await requireUser("/groups");
+  const user = await requireUser("/groups");
+  const canCreate = canCreateGroup(user);
   const groups = await call<Summary[]>("list");
   return (
     <PageFrame
@@ -18,12 +20,12 @@ export default async function Groups() {
       description="Your gift exchanges, all in one place."
     >
       <div className="actions">
-        <Button asChild>
+        {canCreate && <Button asChild>
           <Link href="/create">
             <Plus size={16} />
             Create a group
           </Link>
-        </Button>
+        </Button>}
         <Button asChild variant="outline">
           <Link href="/join">Join a group</Link>
         </Button>
@@ -58,8 +60,8 @@ export default async function Groups() {
         <div className="panel empty">
           <Gift size={30} />
           <h2>Your circle starts here.</h2>
-          <p>Create a group or enter an invitation code to join one.</p>
-          {demo && (
+          <p>Enter an invitation code to join a group.</p>
+          {demo && canCreate && (
             <ActionForm op="sample">
               <Submit outline>Open sample group</Submit>
             </ActionForm>

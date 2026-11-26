@@ -12,6 +12,7 @@ async function start() {
     "lib/demo-bootstrap.sql",
     "supabase/migrations/202611260001_santa_circle.sql",
     "supabase/migrations/202611260002_budget_and_membership.sql",
+    "supabase/migrations/202611260003_restrict_group_creation.sql",
   ]) {
     await db.exec(await readFile(join(process.cwd(), file), "utf8"));
   }

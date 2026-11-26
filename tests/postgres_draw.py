@@ -25,7 +25,8 @@ def verify(socket, env):
 
     users = [str(uuid4()) for _ in range(3)]
     for i, user in enumerate(users):
-        query(f"insert into auth.users values ('{user}', 'test{i}@example.test', now(),false)")
+        address = "venkatesh.chappavarapu7@gmail.com" if i == 0 else f"test{i}@example.test"
+        query(f"insert into auth.users values ('{user}', '{address}', now(),false)")
 
     def rpc(user, operation, payload):
         return (f"set role authenticated; set request.jwt.claim.sub = '{user}'; "

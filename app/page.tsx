@@ -1,3 +1,5 @@
+import { currentUser } from "@/lib/data";
+import { canCreateGroup } from "@/lib/permissions";
 import Link from "next/link";
 import { Snowfall } from "@/components/snowfall";
 import Image from "next/image";
@@ -35,7 +37,8 @@ const steps = [
     color: "gold",
   },
 ];
-export default function Home() {
+export default async function Home() {
+  const canCreate = canCreateGroup(await currentUser());
   return (
     <>
       <section className="hero shell">
@@ -56,12 +59,12 @@ export default function Home() {
             exchange. We’ll keep the names a secret.
           </p>
           <div className="hero-actions">
-            <Button asChild>
+            {canCreate && <Button asChild>
               <Link href="/create">
                 <Gift size={18} />
                 Create a Group <ArrowRight size={16} />
               </Link>
-            </Button>
+            </Button>}
             <Button asChild variant="outline">
               <Link href="/join">
                 <UserRoundPlus size={17} />
@@ -114,7 +117,7 @@ export default function Home() {
           </div>
         </div>
       </section>
-      {demo && (
+      {demo && canCreate && (
         <section className="shell demo-section">
           <div>
             <span className="eyebrow">

@@ -11,13 +11,11 @@ npm ci
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). With both Supabase variables empty, choose **Open sample group** to try an exchange with four fictional participants, saved wishlists, and a pending invitation. You can also create an empty group.
-
-Demo mode runs the production SQL migrations in a temporary, server-side PGlite database. Each browser session has its own demo identity. To test joining, copy an invitation link and open it in a separate browser profile or private window. Demo data disappears on server restart and is local to a single running instance. Use Supabase for persistent or multi-instance exchanges, including shared Vercel deployments.
+Open [localhost:3000](http://localhost:3000). Group creation requires Supabase sign-in with the verified email `venkatesh.chappavarapu7@gmail.com`. Other accounts can join groups using an invitation code. Local demo sessions cannot create groups.
 
 ## Connect Supabase
 
-1. Create a Supabase project. In its SQL Editor, run the [initial schema](supabase/migrations/202611260001_santa_circle.sql), then the [budget validation and membership index migration](supabase/migrations/202611260002_budget_and_membership.sql). On an existing installation, apply only the pending migration. Historical budget amounts are preserved. Keep the Data API enabled with the public schema exposed. The private schema stays unexposed.
+1. Create a Supabase project. In its SQL Editor, run the [initial schema](supabase/migrations/202611260001_santa_circle.sql), then the [budget validation and membership index migration](supabase/migrations/202611260002_budget_and_membership.sql). Then run the [group creation restriction migration](supabase/migrations/202611260003_restrict_group_creation.sql). On an existing installation, apply only pending migrations. Historical budget amounts are preserved. Keep the Data API enabled with the public schema exposed. The private schema stays unexposed.
 2. Under Authentication, enable the **Email** provider, allow new users to sign up, and keep email confirmation enabled. Configure an SMTP sender for delivery to your participants.
 3. Update the **Magic Link** email template to include the one-time code. If your project has a separate **Confirm signup** template, include the code there as well. For example,
 
@@ -47,6 +45,7 @@ Later pushes to the connected branch trigger new builds. [Next.js on Vercel](htt
 
 ## How exchanges work
 
+- Only `venkatesh.chappavarapu7@gmail.com` can create groups. The app and database enforce this restriction. Existing groups are preserved.
 - New groups use INR and start with an editable ₹800 budget.
 - The organizer counts as a participant. Share the invitation link or 12-character code. Anyone with the code and a verified email may join before the draw.
 - **Participants → Track invitation** records a guest email for the organizer. Share the link through your own messaging app. The pending entry clears when a participant joins with the same email.
@@ -70,4 +69,4 @@ For a local release build with fictional data, use `SANTA_CIRCLE_DEMO=true npm r
 
 Run `npm run test:postgres` with Python 3 and PostgreSQL's `initdb`, `pg_ctl` and `psql` on your PATH to verify competing draws on two database connections. The test creates a disposable database and uses an owner-only Unix socket directory. It does not connect to your Supabase project.
 
-The configuration tests exercise production, preview, and local demo settings. The database integration tests run both migrations in PGlite and exercise role restrictions, duplicate joins, participant removal, failed-draw rollback, repeat-draw protection, exclusions, and private reveals. Email delivery and hosted deployment require your Supabase and Vercel accounts.
+The configuration tests exercise production, preview, and local demo settings. The database integration tests run all migrations in PGlite and exercise role restrictions, duplicate joins, participant removal, failed-draw rollback, repeat-draw protection, exclusions, and private reveals. Email delivery and hosted deployment require your Supabase and Vercel accounts.

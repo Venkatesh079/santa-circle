@@ -2,9 +2,12 @@ export const dynamic = "force-dynamic";
 import { ArrowRight } from "lucide-react";
 import { PageFrame } from "@/components/page-frame";
 import { ActionForm, Submit, GroupFields } from "@/components/forms";
+import { redirect } from "next/navigation";
+import { canCreateGroup } from "@/lib/permissions";
 import { requireUser } from "@/lib/data";
 export default async function Create() {
-  await requireUser("/create");
+  const user = await requireUser("/create");
+  if (!canCreateGroup(user)) redirect("/groups");
   return (
     <PageFrame
       title="Create a group"

@@ -11,6 +11,7 @@ test("circle lifecycle and database privacy boundaries", async (t) => {
     "lib/demo-bootstrap.sql",
     "supabase/migrations/202611260001_santa_circle.sql",
     "supabase/migrations/202611260002_budget_and_membership.sql",
+    "supabase/migrations/202611260003_restrict_group_creation.sql",
   ])
     await db.exec(
       await readFile(new URL("../" + file, import.meta.url), "utf8"),
@@ -19,7 +20,7 @@ test("circle lifecycle and database privacy boundaries", async (t) => {
   for (const [i, id] of accounts.entries())
     await db.query("insert into auth.users values ($1,$2,$3,false)", [
       id,
-      "guest" + i + "@example.test",
+      i === 0 ? "Venkatesh.Chappavarapu7@gmail.com" : "guest" + i + "@example.test",
       i === 5 ? null : new Date().toISOString(),
     ]);
   async function rpc(actor, op, p = {}) {
@@ -43,6 +44,7 @@ test("circle lifecycle and database privacy boundaries", async (t) => {
     currency: "INR",
     message: "",
   };
+  await assert.rejects(rpc(1, "create", { ...settings, email: "venkatesh.chappavarapu7@gmail.com" }), /restricted to the administrator/);
   const id = await rpc(0, "create", settings);
   const { code } = await rpc(0, "view", { id });
   await t.test(
