@@ -52,7 +52,7 @@ export default async function Home() {
             <em>A lot of joy.</em>
           </h1>
           <p>
-            A Secret Santa for your team. Create an account, add your wishlist,
+            A Secret Santa for our team. Create an account, add your wishlist,
             and discover who you’ll surprise.
           </p>
           <div className="hero-actions">
