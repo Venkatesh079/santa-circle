@@ -1,72 +1,72 @@
 # Santa Circle
 
-A responsive Secret Santa app built with Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui components, and Supabase. It includes private matches, wishlists, organizer controls, theme switching, and optional snowfall.
+A Secret Santa for one team, built with Next.js and TypeScript. Participants create a name/password account, save a wishlist, and reveal their recipient after the administrator enables the draw.
 
 ## Run locally
 
-Use Node.js 24 LTS and npm. From this directory, run
+Use **Node.js 24 LTS**.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000). Group creation requires Supabase sign-in with the verified email `venkatesh.chappavarapu7@gmail.com`. Other accounts can join groups using an invitation code. Local demo sessions cannot create groups.
+If macOS reports `EMFILE: too many open files`, use `WATCHPACK_POLLING=true npm run dev`.
 
-## Connect Supabase
+Open http://localhost:3000. No Supabase account, Docker, or separate database service is required.
 
-1. Create a Supabase project. In its SQL Editor, run the [initial schema](supabase/migrations/202611260001_santa_circle.sql), then the [budget validation and membership index migration](supabase/migrations/202611260002_budget_and_membership.sql). Then run the [group creation restriction migration](supabase/migrations/202611260003_restrict_group_creation.sql). On an existing installation, apply only pending migrations. Historical budget amounts are preserved. Keep the Data API enabled with the public schema exposed. The private schema stays unexposed.
-2. Under Authentication, enable the **Email** provider, allow new users to sign up, and keep email confirmation enabled. Configure an SMTP sender for delivery to your participants.
-3. Update the **Magic Link** email template to include the one-time code. If your project has a separate **Confirm signup** template, include the code there as well. For example,
+The development administrator is:
 
-   ```html
-   <p>Your Santa Circle sign-in code is <strong>{{ .Token }}</strong>.</p>
-   ```
+- Name: `admin`
+- Password: `local-santa-admin`
 
-   Participants enter the code in the app, including first-time users arriving from an invitation. [Supabase email OTP documentation](https://supabase.com/docs/guides/auth/auth-email-passwordless)
-4. Copy the project URL and **publishable key** from the project's Connect or API Keys panel. Copy [.env.example](.env.example) to `.env.local` and set both values. Restart the development server.
+For custom credentials, copy `.env.example` to `.env.local`, set `ADMIN_NAME` and `ADMIN_PASSWORD`, and restart the server. The admin is provisioned automatically and cannot participate, save a wishlist, or reveal matches. The admin name must be separate from the approved participant names. Changing its configured credentials and restarting updates the admin and revokes its previous sessions.
 
-   ```dotenv
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_project_key
-   ```
+## Test the flow
 
-The app uses the participant's authenticated session for database calls. Keep service-role keys, database passwords, and SMTP credentials out of the repository and the public environment variables. The app needs no service-role key. Supplying only one of the two variables is a configuration error.
+1. Open `/signup` and create at least two participant accounts with different approved full names. Sign out between accounts, or use separate browser profiles. Participants are enrolled automatically; there are no groups or invitation codes.
+2. Save a wishlist for each participant. **Sign out** is in the top-right header on every signed-in page and always asks for confirmation. If a participant has unsaved wishlist changes, they can save and sign out, discard and sign out, or cancel to continue editing. Drafts are shared with the header so these choices also work after navigating to another page. A failed save keeps their changes and leaves them signed in. The **Draw** button is disabled initially, and early draw requests are also rejected on the server.
+3. Sign in with the administrator account at `/signin`. Check the participant list, make sure everyone has saved their wishlist, and press **Enable draw**, then confirm. This closes registration, locks all wishlists, and creates all assignments together. At least two participants are required.
+4. Sign in as each participant, or press **Refresh status** in an already open dashboard. Press **Draw** to see that account’s recipient and their wishlist. Repeating the draw returns the same recipient. Only the signed-in giver can retrieve their match through the app; the admin dashboard never displays assignments.
+5. Check **My wishlist** after the draw starts: saved wishes remain visible, but editing is unavailable. Wishlist save requests from older open pages are also rejected by the server.
 
-## Publish on Vercel
+The initial 26 approved full names are seeded once from `lib/roster.json` into the `approved_people` database table. Before the draw, the administrator can add an Aria Profile name or delete a person from **Approved people**, with a confirmation prompt for either action. Added people can register themselves; deleting a registered person permanently removes their account, wishlist, recovery hint, sessions, and reset links as well as their roster entry. Changes persist across restarts. After the draw starts, adding and deleting people is blocked on the server and the controls are hidden. Signup matches the full name without regard to capitalization and tolerates surrounding/repeated whitespace. It saves the canonical spelling from the roster. A unique database constraint permits only one account per approved person, including simultaneous signup requests. Participants use their full Aria Profile name and password to sign in, with the same case and whitespace normalization. No email address is collected or stored.
 
-1. Push this directory, including `package-lock.json` and `supabase/migrations`, to your Git provider. The repository root should contain `package.json`. If it is inside a larger repository, select this folder as Vercel's Root Directory.
-2. In Vercel, select **Add New → Project**, import the repository, choose the **Next.js** preset, and select Node.js 24.x. Use the default install and build settings.
-3. In project environment variables, set the two Supabase values above for Production. For preview deployments, set both values to a separate Supabase test project's credentials and apply the migration there. Previews with both values empty run the temporary demo. Production builds require both variables and validate the URL and public key before compilation. Enable Vercel’s system environment variables so the build can identify its deployment environment. [Vercel environment settings](https://vercel.com/docs/environment-variables/system-environment-variables)
-4. Build a fresh production deployment with the production settings. Set the Supabase Authentication Site URL to your deployed HTTPS origin. Redeploy after changing Vercel environment variables.
-5. Verify the hosted flow with three distinct email accounts. Create a group, share its invitation, join from two other sessions, save a wishlist, draw names, and open each private card. With only three participants, a mutual exclusion makes a complete draw impossible. Use at least four participants when testing a valid draw with a mutual exclusion.
+On an existing database, accounts whose full names already match are linked automatically. Abbreviated or ambiguous names require the administrator to select the correct approved name under **Match existing accounts**. New signup and enabling a new draw are blocked until that review is complete. Existing account IDs, passwords, wishlists, and assignments are preserved; an already enabled draw stays enabled. The local database is migrated to name-based sign-in, removing the old address column.
 
-Later pushes to the connected branch trigger new builds. [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs)
+## Database and passwords
 
-## How exchanges work
+The original app used **Supabase / PostgreSQL** when configured and a temporary demo otherwise. This simplified branch uses a persistent **SQLite** file at `data/santa.sqlite`. The file is created automatically on first signup-page or database access and persists across app restarts. It stores accounts, bcrypt password hashes, wishlists, sessions, the draw status, and assignments. Local database files and `.env.local` are ignored by Git. Historical Supabase migrations remain under `supabase/migrations` for reference; this branch does not execute them or connect to Supabase, and existing Supabase users/data are not migrated.
 
-- Only `venkatesh.chappavarapu7@gmail.com` can create groups. The app and database enforce this restriction. Existing groups are preserved.
-- New groups use INR and start with an editable ₹800 budget.
-- The organizer counts as a participant. Share the invitation link or 12-character code. Anyone with the code and a verified email may join before the draw.
-- **Participants → Track invitation** records a guest email for the organizer. Share the link through your own messaging app. The pending entry clears when a participant joins with the same email.
-- Organizers can edit settings, remove participants, and add mutual exclusions before drawing names. A draw supports 3–100 participants.
-- PostgreSQL generates an assignment with randomized augmenting paths over allowed giver–recipient pairs. A circle row lock serializes membership changes and draws. An impossible draw rolls back. A successful draw saves every assignment and locks the group in one transaction.
-- All exchange tables have Row Level Security enabled and reside in a restricted schema with default-deny direct access. Only the authenticated RPC exposes group operations. It checks verified identity, membership, and organizer permissions on the server. Organizer views include reveal status. The reveal operation returns only the current giver's recipient and their latest wishlist.
-- Wishlists remain editable after drawing. Opening the card again shows updated ideas and preferences.
+Passwords use bcrypt with a random salt and cost 12; plaintext passwords are never stored. Passwords must contain at least 8 characters and fit bcrypt’s 72-byte UTF-8 limit. Sessions use random tokens in HttpOnly, SameSite cookies; only SHA-256 token hashes are stored in the database. Sessions expire after seven days and are revoked on sign-out. Login attempts are limited to ten per account name within 15 minutes, with that counter cleared after successful login. A broader limit of 200 authentication attempts per IP within 15 minutes protects against name-spraying without pooling everyone into the ten-attempt account limit. A recovery question and answer are optional at signup. Leave both blank to skip them; if either is provided, both are required. Recovery answers are normalized for case and whitespace and stored only as bcrypt hashes with cost 12. Participants can open **Reset password** from sign-in or their dashboard and enter their Aria Profile name, the question they selected, their answer, and a new password with confirmation. The old password is not required. Participants without a recovery hint are directed to contact admin Test Participant 23 for a one-time reset link. Reset requests are throttled by name and IP. A successful reset revokes all sessions for that participant. Recovery hints can only be set during registration. There is no option to add or change them afterward. The administrator can press **Generate reset link** beside a participant in the admin dashboard, copy the private link, and share it directly with that person. It works even if the participant skipped recovery setup. The participant sees their name prefilled and read-only, then chooses and confirms their own new password. The admin never enters the password. Links expire after 30 minutes, and generating another link for the same participant invalidates the previous one. Opening or previewing a link does not consume it. Only a successful password reset consumes it, atomically with updating the bcrypt password hash and signing out that participant's existing sessions. Failed validation or a failed database transaction leaves the link available until expiry. Only token hashes are stored in the database; the browser fragment carries the token so it is not sent in request URLs or referrers. Both reset paths preserve the account, wishlist, recovery hint, and draw assignments. A recovery-answer reset also invalidates outstanding reset links.
+
+Set `APP_URL` to your app's public origin before generating links in production; it must use HTTPS (HTTP loopback is allowed for local testing). In development it defaults to `http://127.0.0.1:3000`. A localhost link only works on the same computer. The admin must share links privately with the correct participant. Administrator credentials remain managed through server configuration.
+
+Enabling the draw uses a SQLite write transaction to freeze registration and save a complete random derangement: everyone gives once, everyone receives once, and nobody gifts themselves. Cryptographic random numbers shuffle participants; shuffles containing self-matches are retried. All assignments are saved atomically, and the administrator is always excluded.
+
+For essential changes during the actual event, the administrator can choose **Review draw reset** while the draw is active. Three confirmation steps require acknowledging that every match becomes invalid, confirming that participants have been informed, entering a reason and the current administrator password, then typing `RESET DRAW` exactly and accepting a final warning. The app sends no notifications: the administrator must contact participants directly, including asking them to disregard any recipient already viewed or gifts already planned. Already displayed names cannot be retracted.
+
+The server verifies the administrator session, rate limits password checks, and issues a single-use approval that expires after five minutes and is bound to that session and draw revision. A new approval replaces the previous one; logout, changed credentials, expiry, a reset, or a new draw makes old approval unusable. Before clearing anything, the server must create a private SQLite backup in the database directory’s `backups/` folder (directory mode 0700, file mode 0600). Backup failure leaves the draw unchanged. Clearing assignments, reopening setup, consuming approvals, and recording the administrator, reason, time, participant count, and backup path happen together in one transaction. Accounts, saved wishlists, recovery details, sessions, and password-reset links are preserved. The administrator can then change the roster and enable a new draw; people must refresh/sign in and draw again. Backups contain sensitive account data and assignments and are never served through the UI; restoration is a deliberate server-side maintenance operation.
+
+To start a fresh **local test**, stop the server and move the `data` directory outside the project as a backup, then restart. This starts a new exchange with an empty database. Do not do this to a real team’s active exchange.
 
 ## Verification
-
-GitHub Actions runs the lockfile install, tests, PostgreSQL concurrency check, type check, and production build on pushes and pull requests. The workflow uses local test data and build fixtures.
 
 ```sh
 npm test
 npm run typecheck
 npm run build
-npm start
 ```
 
-For a local release build with fictional data, use `SANTA_CIRCLE_DEMO=true npm run build` and `SANTA_CIRCLE_DEMO=true npm start`. A Vercel Production deployment always requires Supabase.
+The tests exercise password hashing, duplicate/racing registrations, admin restrictions, disabled draws, complete and stable assignments, rollback, sessions, persistent storage, throttling, approved-name validation, simultaneous claims on a single roster name, legacy roster review, recovery-answer validation and hashing, password resets, and competing draws in separate processes. GitHub Actions runs tests, a production build, and type checking.
 
-Run `npm run test:postgres` with Python 3 and PostgreSQL's `initdb`, `pg_ctl` and `psql` on your PATH to verify competing draws on two database connections. The test creates a disposable database and uses an owner-only Unix socket directory. It does not connect to your Supabase project.
+## Hosting later
 
-The configuration tests exercise production, preview, and local demo settings. The database integration tests run all migrations in PGlite and exercise role restrictions, duplicate joins, participant removal, failed-draw rollback, repeat-draw protection, exclusions, and private reveals. Email delivery and hosted deployment require your Supabase and Vercel accounts.
+This setup needs a Node.js server with a persistent writable disk. Set a private `ADMIN_PASSWORD` (required in production), optionally `ADMIN_NAME`, and `DATABASE_PATH` pointing to that disk. Use HTTPS in production; session cookies are Secure in production builds. For a local production-build check over HTTP, use a browser that supports Secure localhost cookies or use the development server for the full account flow.
+
+```sh
+npm run build
+ADMIN_PASSWORD='replace-with-a-private-password' npm start
+```
+
+Back up the SQLite database with the server stopped, including any WAL/SHM sidecar files. Keep the database outside publicly served directories. When hosting behind a proxy, configure it to replace `X-Forwarded-For` for authentication throttling. An ephemeral filesystem such as a standard Vercel function will not preserve this database; use a persistent server/volume or add a hosted database before that deployment.

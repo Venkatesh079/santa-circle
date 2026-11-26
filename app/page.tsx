@@ -1,7 +1,5 @@
-import { currentUser } from "@/lib/data";
-import { canCreateGroup } from "@/lib/permissions";
+import { currentUser } from "@/lib/auth";
 import Link from "next/link";
-import { Snowfall } from "@/components/snowfall";
 import Image from "next/image";
 import {
   ArrowRight,
@@ -10,35 +8,33 @@ import {
   MailOpen,
   Shuffle,
   LockKeyhole,
-  FlaskConical,
   Gift,
   Snowflake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ActionForm, Submit } from "@/components/forms";
-import { demo } from "@/lib/config";
+import { EventDetails } from "@/components/event-details";
 const steps = [
   {
     icon: UsersRound,
-    title: "Gather your circle",
-    body: "Create a group, set your gift budget, and pick a date to exchange gifts.",
+    title: "Create your account",
+    body: "Sign up with your Aria Profile name and password. Everyone on the team registers once.",
     color: "sage",
   },
   {
     icon: MailOpen,
-    title: "Send the invitations",
-    body: "Share your group link so everyone can join and add a few wishlist ideas.",
+    title: "Add your wishlist",
+    body: "Share gift ideas and preferences to help your Secret Santa choose.",
     color: "rose",
   },
   {
     icon: Shuffle,
     title: "Draw names",
-    body: "Draw once, then let each person unwrap their private match.",
+    body: "Once the administrator opens the draw, reveal your private recipient.",
     color: "gold",
   },
 ];
 export default async function Home() {
-  const canCreate = canCreateGroup(await currentUser());
+  const user = await currentUser();
   return (
     <>
       <section className="hero shell">
@@ -55,45 +51,47 @@ export default async function Home() {
             <em>A lot of joy.</em>
           </h1>
           <p>
-            Bring your favorite people together for a Secret Santa gift
-            exchange. We’ll keep the names a secret.
+            A Secret Santa for your team. Create an account, add your wishlist,
+            and discover who you’ll surprise.
           </p>
           <div className="hero-actions">
-            {canCreate && <Button asChild>
-              <Link href="/create">
+            <Button asChild>
+              <Link href={user ? "/dashboard" : "/signup"}>
                 <Gift size={18} />
-                Create a Group <ArrowRight size={16} />
-              </Link>
-            </Button>}
-            <Button asChild variant="outline">
-              <Link href="/join">
-                <UserRoundPlus size={17} />
-                Join a Group
+                {user ? "My dashboard" : "Create account"} <ArrowRight size={16} />
               </Link>
             </Button>
+            {!user && <Button asChild variant="outline">
+              <Link href="/signin">
+                <UserRoundPlus size={17} />
+                Sign in
+              </Link>
+            </Button>}
           </div>
           <div className="privacy">
             <LockKeyhole size={14} />
-            Private matches, even from the organizer.
+            Your match is visible only in your signed-in account.
           </div>
         </div>
-        <div className="postcard">
-          <div className="postcard-sheet">
-            <div className="postcard-art">
-              <Image
-                src="/gifts.webp"
-                alt="Holiday postcard with three ribbon-wrapped gifts and pine sprigs"
-                fill
-                priority
-                sizes="(max-width: 760px) 88vw, 44vw"
-              />
-            </div>
-            <Snowfall />
-            <div className="stamp" aria-hidden="true">
-              <Snowflake size={24} />
-            </div>
-            <div className="post-lines" aria-hidden="true">
-              〰<br />〰
+        <div className="hero-gift">
+          <EventDetails compact />
+          <div className="postcard">
+            <div className="postcard-sheet">
+              <div className="postcard-art">
+                <Image
+                  src="/gifts.webp"
+                  alt="Holiday postcard with three ribbon-wrapped gifts and pine sprigs"
+                  fill
+                  priority
+                  sizes="(max-width: 760px) 88vw, 44vw"
+                />
+              </div>
+              <div className="stamp" aria-hidden="true">
+                <Snowflake size={24} />
+              </div>
+              <div className="post-lines" aria-hidden="true">
+                〰<br />〰
+              </div>
             </div>
           </div>
         </div>
@@ -117,26 +115,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
-      {demo && canCreate && (
-        <section className="shell demo-section">
-          <div>
-            <span className="eyebrow">
-              <FlaskConical size={15} />
-              Demo mode
-            </span>
-            <h2>Take a sample circle for a spin.</h2>
-            <p>
-              Try the organizer dashboard and private reveal with a group of
-              fictional friends.
-            </p>
-          </div>
-          <ActionForm op="sample">
-            <Submit outline>
-              Open sample group <ArrowRight size={16} />
-            </Submit>
-          </ActionForm>
-        </section>
-      )}
+
     </>
   );
 }

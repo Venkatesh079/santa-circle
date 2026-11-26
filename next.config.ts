@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
-import { demo } from "./lib/config";
 
 const config: NextConfig = {
+  outputFileTracingRoot: process.cwd(),
   devIndicators: false,
   poweredByHeader: false,
   async headers() {
@@ -21,16 +21,5 @@ const config: NextConfig = {
       },
     ];
   },
-  serverExternalPackages: ["@electric-sql/pglite"],
-  outputFileTracingIncludes: demo
-    ? {
-        "/*": [
-          "./supabase/migrations/*.sql",
-          "./lib/demo-bootstrap.sql",
-          "./node_modules/@electric-sql/pglite/dist/*.wasm",
-          "./node_modules/@electric-sql/pglite/dist/*.data",
-        ],
-      }
-    : {},
 };
 export default config;

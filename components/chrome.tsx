@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Gift, Moon, Sun, Menu, X, ArrowUpRight, TreePine } from "lucide-react";
 import { Button } from "./ui/button";
+import { SignOutControl } from "./wishlist-session";
 export function Brand() {
   return (
     <Link className="brand" href="/">
@@ -14,7 +15,7 @@ export function Brand() {
     </Link>
   );
 }
-export function Header() {
+export function Header({ signedIn }: { signedIn: boolean }) {
   const path = usePathname();
   const [opened, setOpened] = useState(false),
     [dark, setDark] = useState(false);
@@ -50,12 +51,7 @@ export function Header() {
           <Link href="/#how-it-works" onClick={() => setOpened(false)}>
             How it works
           </Link>
-          <Link
-            href="/groups"
-            aria-current={path.startsWith("/groups") ? "page" : undefined}
-          >
-            My groups
-          </Link>
+          {signedIn && <Link href="/dashboard" aria-current={path.startsWith("/dashboard") ? "page" : undefined} onClick={() => setOpened(false)}>Dashboard</Link>}
         </nav>
         <div className="header-actions">
           <button
@@ -65,11 +61,11 @@ export function Header() {
           >
             {dark ? <Sun size={17} /> : <Moon size={17} />}
           </button>
-          <Button asChild size="sm" className="nav-join">
-            <Link href="/join">
-              Join a group <ArrowUpRight size={15} />
+          {signedIn ? <SignOutControl /> : <Button asChild size="sm" className="nav-join">
+            <Link href="/signin">
+              Sign in <ArrowUpRight size={15} />
             </Link>
-          </Button>
+          </Button>}
           <button
             className="theme mobile-menu"
             aria-label="Toggle navigation"

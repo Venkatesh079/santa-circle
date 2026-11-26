@@ -7,6 +7,10 @@ import "@fontsource/dm-serif-display/latin-400.css";
 import "@fontsource/dm-serif-display/latin-400-italic.css";
 import "./globals.css";
 import { Header, Footer } from "@/components/chrome";
+import { Snowfall } from "@/components/snowfall";
+import { currentUser } from "@/lib/auth";
+import { store } from "@/lib/db";
+import { WishlistSession } from "@/components/wishlist-session";
 export const metadata: Metadata = {
   title: {
     default: "Santa Circle · Secret Santa gift exchanges",
@@ -17,9 +21,11 @@ export const metadata: Metadata = {
 };
 const themeScript =
   "try{document.documentElement.dataset.theme=localStorage.getItem('santa-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}";
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const user = await currentUser();
+  const sessionKey = user ? `${user.id}:${store().drawRevision()}` : "guest";
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
@@ -27,9 +33,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <a className="skip" href="#main">
           Skip to content
         </a>
-        <Header />
-        <main id="main">{children}</main>
-        <Footer />
+        <Snowfall />
+        <WishlistSession key={sessionKey} initialWishlist={user?.wishlist || ""}>
+          <Header signedIn={Boolean(user)} />
+          <main id="main">{children}</main>
+          <Footer />
+        </WishlistSession>
       </body>
     </html>
   );

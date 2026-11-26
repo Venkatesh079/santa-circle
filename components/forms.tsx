@@ -1,415 +1,149 @@
 "use client";
-import { useActionState, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
-import {
-  ArrowRight,
-  Copy,
-  Check,
-  Plus,
-  Trash2,
-  LoaderCircle,
-  Gift,
-  Mail,
-  Sparkles,
-} from "lucide-react";
-import { act, authenticate } from "@/app/actions";
+import { Gift, LoaderCircle } from "lucide-react";
+import { act, authenticate, resetPassword, generatePasswordResetLink, lookupPasswordResetLink, completePasswordReset } from "@/app/actions";
 import { Button } from "./ui/button";
-import {
-  budgetCurrency,
-  displayDate,
-  budgetLabel,
-  type Circle,
-  type Idea,
-  type Result,
-} from "@/lib/types";
+import type { Match } from "@/lib/store";
+import recoveryQuestions from "@/lib/recovery-questions.json";
+import { RecipientWishlist } from "./recipient-wishlist";
 
-function Status({ result }: { result: Result }) {
-  return (
-    <>
-      {result.error && (
-        <p role="alert" className="notice error">
-          {result.error}
-        </p>
-      )}
-      {result.success && (
-        <p role="status" className="notice">
-          {result.success}
-        </p>
-      )}
-    </>
-  );
-}
-export function Submit({
-  children,
-  outline = false,
-  disabled = false,
-}: {
-  children: ReactNode;
-  outline?: boolean;
-  disabled?: boolean;
-}) {
+export function Submit({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
   const { pending } = useFormStatus();
-  return (
-    <Button
-      type="submit"
-      variant={outline ? "outline" : "default"}
-      disabled={disabled || pending}
-      aria-busy={pending}
-    >
-      {pending ? <LoaderCircle className="spin" size={17} /> : null}
-      {children}
-    </Button>
-  );
+  return <Button type="submit" disabled={disabled || pending} aria-busy={pending}>
+    {pending && <LoaderCircle className="spin" size={17} />}{children}
+  </Button>;
 }
-type Op = Parameters<typeof act>[0];
-export function ActionForm({
-  op,
-  children,
-  id,
-  className,
-  confirm,
-}: {
-  op: Op;
-  id?: string;
-  children: ReactNode;
-  className?: string;
-  confirm?: string;
-}) {
-  const keepInput = useRef(false);
-  const [state, action] = useActionState(
-    async (previous: Result, data: FormData) => {
-      const result = await act(op, previous, data);
-      keepInput.current = Boolean(result.error);
-      return result;
-    },
-    {},
-  );
-  return (
-    <form
-      action={action}
-      onReset={(event) => {
-        if (keepInput.current) event.preventDefault();
-      }}
-      className={className}
-      onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
-      }}
-    >
-      {id && <input type="hidden" name="id" value={id} />}
-      {children}
-      <Status result={state} />
-    </form>
-  );
+export function ActionForm({ op, children, confirm }: { op: "wishlist" | "enable"; children: ReactNode; confirm?: string }) {
+  return <form action={act.bind(null, op)} className="form-stack" onSubmit={e => {
+    if (confirm && !window.confirm(confirm)) e.preventDefault();
+  }}>{children}</form>;
 }
-export function GroupFields({ group }: { group?: Circle }) {
-  return (
-    <>
-      <label>
-        Group name
-        <input
-          name="name"
-          required
-          maxLength={80}
-          placeholder="e.g. The Fireside Friends"
-          defaultValue={group?.name}
-        />
-      </label>
-      {!group && (
-        <label>
-          Your name
-          <input
-            name="person"
-            autoComplete="name"
-            required
-            maxLength={80}
-            placeholder="Your organizer name"
-          />
-        </label>
-      )}
-      <label>
-        Gift budget (INR ₹)
-        <input
-          name="budget"
-          type="number"
-          min="0"
-          max="999999999"
-          step=".01"
-          required
-          defaultValue={
-            group
-              ? group.currency === budgetCurrency
-                ? group.budget
-                : ""
-              : 800
-          }
-        />
-      </label>
-      <label>
-        Exchange date
-        <input type="date" name="date" required defaultValue={group?.date} />
-      </label>
-      <label>
-        Group message <span>(optional)</span>
-        <textarea
-          name="message"
-          maxLength={1000}
-          defaultValue={group?.message}
-          placeholder="Where and when will you exchange gifts?"
-        />
-      </label>
-    </>
-  );
+export function AccountForm({ mode, name = "", recoveryQuestion = "" }: { mode: "signup" | "signin"; name?: string; recoveryQuestion?: string }) {
+  return <form action={authenticate.bind(null, mode)} className="form-stack" onInput={event => {
+    if (mode !== "signup") return;
+    const password = event.currentTarget.elements.namedItem("password") as HTMLInputElement;
+    const confirmation = event.currentTarget.elements.namedItem("confirmPassword") as HTMLInputElement;
+    confirmation.setCustomValidity(confirmation.value === password.value ? "" : "Passwords do not match.");
+  }}>
+    <label>Name<input name="name" defaultValue={name} autoComplete={mode === "signup" ? "name" : "username"} aria-describedby="name-help" required maxLength={80} placeholder="First name Last name" /></label>
+    <p id="name-help" className="hint">{mode === "signup" ? "Use the same full name as shown in your Aria Profile. Capitalization does not matter." : "Participants: use the same full name as shown in your Aria Profile. Capitalization does not matter."}</p>
+    <label>Password<input name="password" type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} required minLength={8} maxLength={72} /></label>
+    {mode === "signup" && <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>}
+    {mode === "signup" && <RecoveryFields question={recoveryQuestion} optional />}
+    {mode === "signup" && <p className="hint">Each approved person can register only once. Passwords need at least 8 characters.</p>}
+    <Submit>{mode === "signup" ? "Create account" : "Sign in"}</Submit>
+  </form>;
 }
-export function CopyInvite({ code }: { code: string }) {
-  const [status, set] = useState("");
-  const [fallback, show] = useState("");
+export function ChangePasswordForm({ name = "" }: { name?: string }) {
+  return <form action={resetPassword} className="form-stack" onInput={event => {
+    const password = event.currentTarget.elements.namedItem("newPassword") as HTMLInputElement;
+    const confirmation = event.currentTarget.elements.namedItem("confirmPassword") as HTMLInputElement;
+    confirmation.setCustomValidity(confirmation.value === password.value ? "" : "Passwords do not match.");
+  }}>
+    <label>Name<input name="name" autoComplete="username" defaultValue={name} required maxLength={80} aria-describedby="reset-name-help" /></label>
+    <p id="reset-name-help" className="hint">Use the same full name as shown in your Aria Profile. Capitalization does not matter.</p>
+    <RecoveryFields resetting />
+    <label>New password<input name="newPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+    <label>Confirm new password<input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+    <p className="hint">Use at least 8 characters. You will be signed out on all devices after changing your password.</p>
+    <Submit>Reset password</Submit>
+  </form>;
+}
+export function AdminPasswordReset({ participantId, name }: { participantId: string; name: string }) {
+  return <form action={generatePasswordResetLink} aria-label={`Generate reset link for ${name}`}>
+    <input type="hidden" name="userId" value={participantId} />
+    <Submit>Generate reset link</Submit>
+  </form>;
+}
+export function GeneratedPasswordResetLink({ link, name, expires }: { link: string; name: string; expires: number }) {
+  const [status, setStatus] = useState("");
   async function copy() {
-    const link = new URL("/join", window.location.origin);
-    link.searchParams.set("code", code);
-    try {
-      await navigator.clipboard.writeText(link.href);
-      set("Invitation link copied.");
-    } catch {
-      show(link.href);
-      set("Select the invitation link to copy it.");
-    }
+    try { await navigator.clipboard.writeText(link); setStatus("Reset link copied."); }
+    catch { setStatus("Select and copy the link below."); }
   }
-  return (
-    <div className="share-box">
-      <div>
-        <small>Group code</small>
-        <code>{code}</code>
-      </div>
-      <Button variant="outline" size="sm" onClick={copy}>
-        {status.startsWith("Invitation") ? (
-          <Check size={15} />
-        ) : (
-          <Copy size={15} />
-        )}
-        Copy invite link
-      </Button>
-      {status && (
-        <p className="share-note" role="status">
-          {status}
-        </p>
-      )}
-      {fallback && (
-        <input
-          aria-label="Invitation link"
-          readOnly
-          value={fallback}
-          onFocus={(e) => e.target.select()}
-        />
-      )}
-    </div>
-  );
+  return <section className="panel" aria-label="Generated password reset link">
+    <h2>Reset link for {name}</h2>
+    <p>Share this link privately with this participant so they can choose their own password.</p>
+    <label>One-time reset link<input readOnly value={link} onFocus={event => event.currentTarget.select()} /></label>
+    <div className="actions"><Button type="button" variant="outline" onClick={copy}>Copy reset link</Button><a className="text-link" href={link} target="_blank" rel="noreferrer">Open reset page</a></div>
+    <p className="hint">Expires {new Date(expires).toUTCString()}. Opening the link does not use it up. A successful password reset does.</p>
+    {status && <p role="status">{status}</p>}
+  </section>;
 }
-export function Wishlist({ group }: { group: Circle }) {
-  const [ideas, setIdeas] = useState<(Idea & { key: number })[]>(
-    group.ideas.map((x, key) => ({ ...x, key })),
-  );
-  const [next, setNext] = useState(ideas.length);
-  return (
-    <ActionForm op="wishlist" id={group.id} className="form-stack">
-      <label>
-        Interests
-        <textarea
-          name="interests"
-          maxLength={1000}
-          defaultValue={group.interests}
-          placeholder="Hobbies, favorite flavors, colors…"
-        />
-      </label>
-      <label>
-        Gift preferences
-        <textarea
-          name="preferences"
-          maxLength={1000}
-          defaultValue={group.preferences}
-          placeholder="Sizes, allergies, or things to avoid"
-        />
-      </label>
-      {ideas.map((it, i) => (
-        <fieldset className="idea" key={it.key}>
-          <legend>Gift idea {i + 1}</legend>
-          <label>
-            Item
-            <input
-              required
-              name="title"
-              maxLength={120}
-              defaultValue={it.title}
-            />
-          </label>
-          <label>
-            Product link <span>(optional)</span>
-            <input
-              type="url"
-              name="url"
-              maxLength={1500}
-              placeholder="https://"
-              defaultValue={it.url}
-            />
-          </label>
-          <label>
-            Notes <span>(optional)</span>
-            <input name="notes" maxLength={500} defaultValue={it.notes} />
-          </label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIdeas(ideas.filter((x) => x.key !== it.key))}
-          >
-            <Trash2 size={14} />
-            Remove idea
-          </Button>
-        </fieldset>
-      ))}
-      {!ideas.length && (
-        <p className="muted">
-          Your wishlist is empty. Add a gift idea to help your Santa.
-        </p>
-      )}
-      <div className="actions">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={ideas.length >= 12}
-          onClick={() => {
-            setIdeas([...ideas, { title: "", url: "", notes: "", key: next }]);
-            setNext(next + 1);
-          }}
-        >
-          <Plus size={16} />
-          Add gift idea
-        </Button>
-        <Submit>Save wishlist</Submit>
-      </div>
-    </ActionForm>
-  );
-}
-export function Reveal({ group }: { group: Circle }) {
-  const [state, action, pending] = useActionState(
-    act.bind(null, "reveal"),
-    {} as Result,
-  );
-  const r = state.recipient;
-  return (
-    <div className="reveal">
-      <div className="ribbon-icon">{r ? <Sparkles /> : <Gift />}</div>
-      {r ? (
-        <div className="unwrapped" aria-live="polite">
-          <p>Your gift is for</p>
-          <h3>{r.name}</h3>
-          <p>
-            {budgetLabel(group)} · {displayDate(group.date)}
-          </p>
-          <h4>Wishlist</h4>
-          {r.ideas.length ? (
-            <ul>
-              {r.ideas.map((it, i) => (
-                <li key={i}>
-                  {it.url ? (
-                    <a href={it.url} target="_blank" rel="noopener noreferrer">
-                      {it.title} ↗
-                    </a>
-                  ) : (
-                    it.title
-                  )}
-                  {it.notes && <small>{it.notes}</small>}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No gift ideas yet.</p>
-          )}
-          {r.interests && (
-            <p>
-              <b>Interests</b> · {r.interests}
-            </p>
-          )}
-          {r.preferences && (
-            <p>
-              <b>Preferences</b> · {r.preferences}
-            </p>
-          )}
-        </div>
-      ) : (
-        <>
-          <h3>Your secret recipient</h3>
-          <p>Open this card when you have a moment to yourself.</p>
-          <form action={action}>
-            <input type="hidden" name="id" value={group.id} />
-            <Button disabled={pending}>
-              {pending
-                ? "Opening…"
-                : group.revealed
-                  ? "View my recipient"
-                  : "Unwrap my match"}
-              <Gift size={16} />
-            </Button>
-          </form>
-        </>
-      )}
-      <Status result={state} />
-    </div>
-  );
-}
-export function SignIn({ next }: { next: string }) {
-  const [address, setAddress] = useState("");
-  const [sent, send, sending] = useActionState(
-    authenticate.bind(null, "send"),
-    {},
-  );
-  const [verified, verify, checking] = useActionState(
-    authenticate.bind(null, "verify"),
-    {},
-  );
-  return (
-    <div className="form-stack">
-      <form action={send} className="form-stack">
-        <label>
-          Email address
-          <input
-            name="email"
-            autoComplete="email"
-            type="email"
-            required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-          />
-        </label>
-        <Button disabled={sending}>
-          <Mail size={17} />
-          {sending
-            ? "Sending…"
-            : sent.success
-              ? "Send another code"
-              : "Email me a code"}
-        </Button>
-        <Status result={sent} />
+export function PasswordResetLinkForm({ error }: { error?: string }) {
+  const [token, setToken] = useState("");
+  const [info, setInfo] = useState<{ name: string; expires: number }>();
+  const [lookupError, setLookupError] = useState("");
+  const [checking, setChecking] = useState(true);
+  useEffect(() => {
+    let request = 0;
+    async function check() {
+      const current = ++request;
+      const value = new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
+      setChecking(true); setInfo(undefined); setLookupError(""); setToken(value);
+      if (!/^[A-Za-z0-9_-]{43}$/.test(value)) {
+        setLookupError("This reset link is invalid or has expired. Ask the administrator for a new link.");
+        setChecking(false); return;
+      }
+      const fd = new FormData(); fd.set("token", value);
+      try {
+        const result = await lookupPasswordResetLink(fd);
+        if (current !== request) return;
+        if ("error" in result) setLookupError(result.error); else setInfo(result);
+      } catch {
+        if (current !== request) return;
+        setLookupError("Could not check this reset link. Please refresh and try again.");
+      }
+      if (current === request) setChecking(false);
+    }
+    void check();
+    window.addEventListener("hashchange", check);
+    return () => { request++; window.removeEventListener("hashchange", check); };
+  }, []);
+  return <>
+    <noscript>Enable JavaScript to open this private reset link.</noscript>
+    {checking && <p role="status">Checking reset link…</p>}
+    {lookupError && <p className="notice error" role="alert">{lookupError}</p>}
+    {info && <>
+      {error && <p className="notice error" role="alert">{error}</p>}
+      <form action={completePasswordReset} className="form-stack" onInput={event => {
+        const password = event.currentTarget.elements.namedItem("newPassword") as HTMLInputElement;
+        const confirmation = event.currentTarget.elements.namedItem("confirmPassword") as HTMLInputElement;
+        confirmation.setCustomValidity(confirmation.value === password.value ? "" : "Passwords do not match.");
+      }}>
+        <input type="hidden" name="token" value={token} />
+        <label>Name<input name="name" value={info.name} readOnly autoComplete="username" /></label>
+        <label>New password<input name="newPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+        <label>Confirm new password<input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={72} /></label>
+        <p className="hint">This link is for {info.name}. All their existing sessions will be signed out after the password is saved.</p>
+        <Submit>Save new password</Submit>
       </form>
-      {sent.sentTo && (
-        <form action={verify} className="form-stack">
-          <input type="hidden" name="email" value={sent.sentTo} />
-          <input type="hidden" name="next" value={next} />
-          <label>
-            Sign-in code sent to {sent.sentTo}
-            <input
-              name="token"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-              pattern="[0-9]{6,10}"
-            />
-          </label>
-          <Button disabled={checking}>
-            Verify and continue <ArrowRight size={16} />
-          </Button>
-          <Status result={verified} />
-        </form>
-      )}
-    </div>
-  );
+    </>}
+  </>;
+}
+function RecoveryFields({ resetting = false, question = "", optional = false }: { resetting?: boolean; question?: string; optional?: boolean }) {
+  const [selectedQuestion, setSelectedQuestion] = useState(Object.hasOwn(recoveryQuestions, question) ? question : "");
+  const [hasAnswer, setHasAnswer] = useState(false);
+  return <fieldset className="idea"><legend>Password recovery{optional ? " (optional)" : ""}</legend>
+    {optional && <p className="hint">Optional. Add a question and answer now if you want to reset your password later.</p>}
+    <label>Recovery question<select name="recoveryQuestion" required={!optional || hasAnswer} value={selectedQuestion} onChange={event => setSelectedQuestion(event.target.value)}><option value="" disabled={!optional}>{resetting ? "Select the question you chose" : "Choose a question"}</option>{Object.entries(recoveryQuestions).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+    <label>Recovery answer<input name="recoveryAnswer" type="password" autoComplete="off" required={!optional || Boolean(selectedQuestion)} onChange={event => setHasAnswer(Boolean(event.target.value.trim()))} minLength={2} maxLength={72} /></label>
+    <p className="hint">{resetting ? "Enter the answer you saved when registering. Capitalization and extra spaces do not matter." : "Remember your question and answer. You will use them to reset your password. Answers are case-insensitive."}</p>
+  </fieldset>;
+}
+export function Draw({ enabled, recipient }: { enabled: boolean; recipient?: Match }) {
+  return <div className="reveal">
+    <div className="ribbon-icon"><Gift /></div>
+    {recipient ? <div className="unwrapped" aria-live="polite">
+      <p>You are the Secret Santa for</p><h3>{recipient.name}</h3>
+      <RecipientWishlist wishlist={recipient.wishlist || ""} />
+    </div> : <>
+      <h3>Your secret recipient</h3>
+      <p>{enabled ? "Your match is ready. Open it in private." : "Your draw will open when the administrator enables it."}</p>
+    </>}
+    <form action={act.bind(null, "draw")}><Submit disabled={!enabled}>
+      {recipient ? "View my recipient again" : "Draw"}<Gift size={16} />
+    </Submit></form>
+  </div>;
 }
