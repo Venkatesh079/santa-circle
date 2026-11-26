@@ -130,11 +130,6 @@ export async function authenticate(
   const client = await supabase();
   if (mode === "send") {
     const { error } = await client.auth.signInWithOtp({ email: address.data });
-    if (error?.status === 429)
-      return {
-        error:
-          "Too many requests. Wait a minute before requesting another code.",
-      };
     return error
       ? {
           error:
