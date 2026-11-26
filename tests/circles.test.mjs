@@ -13,6 +13,7 @@ test("circle lifecycle and database privacy boundaries", async (t) => {
     "supabase/migrations/202611260002_budget_and_membership.sql",
     "supabase/migrations/202611260003_restrict_group_creation.sql",
   ])
+  
     await db.exec(
       await readFile(new URL("../" + file, import.meta.url), "utf8"),
     );
