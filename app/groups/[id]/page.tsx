@@ -191,10 +191,8 @@ export default async function Group({
                       <input
                         name="email"
                         type="email"
-                        pattern="[^@\s]+@[oO][rR][aA][cC][lL][eE]\.[cC][oO][mM]"
-                        title="Use your @oracle.com email address."
                         required
-                        placeholder="guest@oracle.com"
+                        placeholder="guest@example.com"
                       />
                     </label>
                     <p className="hint">

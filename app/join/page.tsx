@@ -41,13 +41,11 @@ export default async function Join({
           <input
             name="email"
             type="email"
-            pattern="[^@\s]+@[oO][rR][aA][cC][lL][eE]\.[cC][oO][mM]"
-            title="Use your @oracle.com email address."
             autoComplete="email"
             required
             readOnly={!demo}
             defaultValue={user?.email}
-            placeholder="you@oracle.com"
+            placeholder="guest@example.test"
           />
         </label>
         <Submit>
