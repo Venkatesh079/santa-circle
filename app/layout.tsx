@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "Organize a Secret Santa exchange with private matches, shared wishlists and a little holiday magic.",
 };
 const themeScript =
-  "try{document.documentElement.dataset.theme=localStorage.getItem('santa-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch{}";
+  "try{document.documentElement.dataset.theme=localStorage.getItem('santa-theme')||'light'}catch{}";
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
   const sessionKey = user ? `${user.id}:${store().drawRevision()}` : "guest";
