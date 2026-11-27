@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
 
 export function postgresConnectionString(value: string, vercel = Boolean(process.env.VERCEL)) {
   let url: URL;
@@ -14,6 +14,20 @@ export function postgresConnectionString(value: string, vercel = Boolean(process
       url.searchParams.set('sslmode', 'verify-full');
   }
   return url.toString();
+}
+
+export function postgresPoolConfig(value: string, caCertificate = process.env.DATABASE_SSL_CA, vercel = Boolean(process.env.VERCEL)): PoolConfig {
+  const connectionString = postgresConnectionString(value, vercel);
+  if (!caCertificate?.trim()) return { connectionString };
+  const ca = caCertificate.replace(/\\n/g, '\n').trim();
+  if (!ca.startsWith('-----BEGIN CERTIFICATE-----') || !ca.endsWith('-----END CERTIFICATE-----'))
+    throw new Error('DATABASE_SSL_CA must contain the complete PEM certificate downloaded from Supabase Database Settings.');
+  const url = new URL(connectionString);
+  // pg replaces the entire ssl object when SSL parameters occur in the URI.
+  // Supply the CA and verification together so sslmode cannot discard the CA.
+  for (const key of ['sslmode', 'sslrootcert', 'sslcert', 'sslkey', 'ssl'])
+    url.searchParams.delete(key);
+  return { connectionString: url.toString(), ssl: { ca, rejectUnauthorized: true } };
 }
 
 // All statements in a transaction use one connection. AsyncLocalStorage keeps

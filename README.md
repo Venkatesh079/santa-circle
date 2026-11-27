@@ -69,11 +69,14 @@ The tests exercise password hashing, duplicate/racing registrations, admin restr
    | Variable | Value |
    | --- | --- |
    | `DATABASE_URL` | Private PostgreSQL transaction pooler URI from step 2 |
+   | `DATABASE_SSL_CA` | If certificate verification fails: full PEM contents from Supabase Database Settings → SSL Configuration → Download Certificate |
    | `ADMIN_PASSWORD` | A private password, 8 to 72 UTF-8 bytes |
    | `ADMIN_NAME` | Optional; defaults to `admin` |
    | `APP_URL` | Your public HTTPS origin |
 
    Enable the variables for Production (and Preview if needed). Use a separate database/project for preview deployments so testing cannot alter the real exchange. Do not expose `DATABASE_URL` with a `NEXT_PUBLIC_` prefix. No Supabase anonymous or service-role API key is needed: access is through the server-side database connection, and the app retains its own name/password login.
+If you see `SELF_SIGNED_CERT_IN_CHAIN`, download the project CA certificate from Supabase **Database → Settings → SSL Configuration → Download Certificate**. Paste the full file contents, including the `BEGIN CERTIFICATE` and `END CERTIFICATE` lines, into Vercel's `DATABASE_SSL_CA` variable. Multiline PEM and literal `\n` separators are supported. Deploy the updated code and redeploy after saving the variable. The app supplies this CA to the PostgreSQL driver with certificate verification enabled; it removes URI SSL parameters internally because node-postgres otherwise replaces the custom CA configuration. See [Supabase SSL documentation](https://supabase.com/docs/guides/platform/ssl-enforcement).
+
 4. Redeploy. Sign in as administrator, add approved participant names, then let participants register. The administrator is initialized on the first database request. A missing schema, invalid connection string, or missing password fails without falling back to temporary storage.
 
 The PostgreSQL backend preserves shared accounts, sessions, rate limits, wishlists, and assignments across Vercel instances. Transactions serialize exchange changes by locking the exchange row. Before a protected draw reset, it saves a private JSON recovery snapshot in `santa_app.draw_backups` in the same transaction as the reset and its audit record. Snapshot failure rolls back the reset. The `backup_path` audit value is a reference such as `postgres:draw_backups/<id>`, not a file path. These archives contain sensitive account data and matches; they have no browser API access. Configure database backups separately in Supabase. Restoring an archive requires deliberate database maintenance; no automatic restore tool is included.
