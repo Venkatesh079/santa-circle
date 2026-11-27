@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { SantaStore } from '../lib/store.ts';
-import roster from '../lib/roster.json' with { type: 'json' };
+import { testRoster as roster } from './helpers/roster.mjs';
 
 const adminPassword = 'admin-test-password';
 async function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'santa-protected-reset-'));
-  const db = new SantaStore(join(directory, 'santa.sqlite'), 'admin', adminPassword);
+  const db = new SantaStore(join(directory, 'santa.sqlite'), 'admin', adminPassword, roster);
   t.after(() => { db.db.close(); rmSync(directory, { recursive: true, force: true }); });
   const users = await Promise.all(roster.slice(0, 2).map(name => db.register(name, 'participant-password', 'game', 'Chess')));
   db.saveWishlist(users[0].id, 'Books');

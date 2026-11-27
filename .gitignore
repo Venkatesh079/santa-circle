@@ -12,3 +12,6 @@ data/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Personal participant names must stay in the database, not source control.
+/lib/roster.json

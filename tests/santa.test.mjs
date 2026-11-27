@@ -5,17 +5,30 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { SantaStore } from '../lib/store.ts';
-import roster from '../lib/roster.json' with { type: 'json' };
+import { testRoster as roster } from './helpers/roster.mjs';
 
 const adminName = 'admin';
 const adminPassword = 'admin-test-password';
 const password = 'participant-test-password';
-const create = () => new SantaStore(':memory:', adminName, adminPassword);
+const create = () => new SantaStore(':memory:', adminName, adminPassword, roster);
 const enroll = (db, name, pw) => db.register(name, pw, 'school', 'Maple School');
 const admin = db => db.db.prepare('SELECT id FROM users WHERE admin = 1').get().id;
 async function participants(db, count = 3) {
   return Promise.all(Array.from({ length: count }, (_, i) => enroll(db,roster[i], password)));
 }
+
+test('a fresh production database starts without a roster and retains names added by the admin', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'santa-private-roster-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const filename = join(dir, 'santa.sqlite');
+  const first = new SantaStore(filename, adminName, adminPassword);
+  assert.deepEqual(first.approvedPeople(), []);
+  first.addPerson(admin(first), 'Example Participant');
+  first.db.close();
+  const second = new SantaStore(filename, adminName, adminPassword);
+  t.after(() => second.db.close());
+  assert.deepEqual(second.approvedPeople().map(person => person.name), ['Example Participant']);
+});
 
 test('bcrypt hashes, normalized names, reserved admin, and password limits', async t => {
   const db = create(); t.after(() => db.db.close());
@@ -26,11 +39,11 @@ test('bcrypt hashes, normalized names, reserved admin, and password limits', asy
   const row = db.db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
   assert.match(row.password_hash, /^\$2[aby]\$12\$/);
   assert.equal(await bcrypt.compare(password, row.password_hash), true);
-  await assert.rejects(enroll(db,'Test Participant 01', password), /already exists/);
+  await assert.rejects(enroll(db,'TEST PARTICIPANT 01', password), /already exists/);
   await assert.rejects(enroll(db,adminName.toUpperCase(), password), /not on the approved/);
   await assert.rejects(enroll(db,roster[1], '123'), /at least 8/);
   await assert.rejects(enroll(db,roster[1], '😀'.repeat(19)), /72 UTF-8 bytes/);
-  assert.equal((await db.login('  Test Participant 01 ', password)).id, user.id);
+  assert.equal((await db.login('  Test   Participant   01 ', password)).id, user.id);
   await assert.rejects(db.login(user.name, 'wrong-password'), /Incorrect/);
   await assert.rejects(db.login('Unknown Person', password), /Name not recognized.*Aria Profile/);
   const columns = db.db.prepare('PRAGMA table_info(users)').all().map(c => c.name);
@@ -51,7 +64,7 @@ test('only admin can add Aria names, with whitespace normalization and duplicate
   assert.throws(() => db.addPerson('forged-id', 'New Person'), /Only the administrator/);
   for (const name of ['', '  ', 'x'.repeat(81), 'Bad\0Name'])
     assert.throws(() => db.addPerson(admin(db), name), /full name/);
-  for (const name of ['ADMIN', ' Test Participant 01 '])
+  for (const name of ['ADMIN', ' Test   Participant   01 '])
     assert.throws(() => db.addPerson(admin(db), name), /already in use/);
   db.addPerson(admin(db), '  New   Person  ');
   assert.throws(() => db.addPerson(admin(db), 'new person'), /already in use/);
@@ -91,17 +104,17 @@ test('roster additions and removals persist across restarts, including an empty 
   const dir = mkdtempSync(join(tmpdir(), 'santa-roster-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'santa.sqlite');
-  const first = new SantaStore(filename, adminName, adminPassword);
+  const first = new SantaStore(filename, adminName, adminPassword, roster);
   const person = first.approvedPeople().find(p => p.name === roster[0]);
   first.removePerson(admin(first), person.id, person.name);
   first.addPerson(admin(first), 'New Person');
   first.db.close();
-  const second = new SantaStore(filename, adminName, adminPassword);
+  const second = new SantaStore(filename, adminName, adminPassword, roster);
   assert.equal(second.approvedPeople().some(p => p.name === roster[0]), false);
   assert.equal(second.approvedPeople().some(p => p.name === 'New Person'), true);
   for (const person of second.approvedPeople()) second.removePerson(admin(second), person.id, person.name);
   second.db.close();
-  const third = new SantaStore(filename, adminName, adminPassword);
+  const third = new SantaStore(filename, adminName, adminPassword, roster);
   t.after(() => third.db.close());
   assert.equal(third.approvedPeople().length, 0);
 });
@@ -232,14 +245,14 @@ test('accounts, sessions, wishlists, and matches survive reopening the local dat
   const dir = mkdtempSync(join(tmpdir(), 'santa-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'santa.sqlite');
-  const first = new SantaStore(filename, adminName, adminPassword);
+  const first = new SantaStore(filename, adminName, adminPassword, roster);
   const [user] = await participants(first, 3);
   first.saveWishlist(user.id, 'Books');
   first.enableDraw(admin(first));
   const match = first.reveal(user.id);
   const token = first.createSession(user.id);
   first.db.close();
-  const second = new SantaStore(filename, adminName, adminPassword);
+  const second = new SantaStore(filename, adminName, adminPassword, roster);
   t.after(() => second.db.close());
   assert.equal((await second.login(user.name, password)).wishlist, 'Books');
   assert.equal(second.session(token).id, user.id);
@@ -251,10 +264,10 @@ test('changing the configured admin password revokes existing admin sessions', a
   const dir = mkdtempSync(join(tmpdir(), 'santa-admin-test-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'santa.sqlite');
-  const first = new SantaStore(filename, adminName, adminPassword);
+  const first = new SantaStore(filename, adminName, adminPassword, roster);
   const token = first.createSession(admin(first));
   first.db.close();
-  const second = new SantaStore(filename, adminName, 'new-admin-password');
+  const second = new SantaStore(filename, adminName, 'new-admin-password', roster);
   t.after(() => second.db.close());
   assert.equal(second.session(token), undefined);
   await assert.rejects(second.login(adminName, adminPassword), /Incorrect/);
@@ -275,7 +288,7 @@ test('competing processes cannot redraw or create partial assignments', async t 
   const dir = mkdtempSync(join(tmpdir(), 'santa-race-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'santa.sqlite');
-  const db = new SantaStore(filename, adminName, adminPassword);
+  const db = new SantaStore(filename, adminName, adminPassword, roster);
   t.after(() => db.db.close());
   await participants(db, 4);
   const workers = [0, 1].map(() => fork(new URL('./helpers/draw-worker.mjs', import.meta.url), [filename], { silent: true }));
@@ -297,9 +310,9 @@ test('approved roster is seeded, case insensitive, canonical, and unique', async
   assert.equal(db.approvedPeople().length, 26);
   assert.deepEqual(db.approvedPeople().map(p => p.name), [...roster].sort());
   await assert.rejects(enroll(db,'Unlisted Person', password), /not on the approved/);
-  const user = await enroll(db,'  Test Participant 12  ', password);
+  const user = await enroll(db,'  Test   Participant   12  ', password);
   assert.equal(user.name, 'Test Participant 12');
-  await assert.rejects(enroll(db,'Test Participant 12', password), /participant already exists/);
+  await assert.rejects(enroll(db,'TEST PARTICIPANT 12', password), /participant already exists/);
   assert.equal(db.participants().length, 1);
   assert.throws(() => db.db.prepare('INSERT INTO users(id,name_key,name,password_hash) VALUES(?,?,?,?)').run('bypass', 'bypass', 'Unlisted', 'hash'), /approved participant/);
 });
@@ -308,7 +321,7 @@ test('simultaneous registrations with one approved name in different cases creat
   const db = create(); t.after(() => db.db.close());
   const results = await Promise.allSettled([
     enroll(db,'Test Participant 01', password),
-    enroll(db,'Test Participant 01', password),
+    enroll(db,'TEST PARTICIPANT 01', password),
   ]);
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1);
   assert.equal(db.participants().length, 1);
@@ -355,14 +368,14 @@ test('migration preserves legacy accounts and matches while requiring explicit r
   const dir = mkdtempSync(join(tmpdir(), 'santa-migration-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const filename = join(dir, 'santa.sqlite');
-  const first = new SantaStore(filename, adminName, adminPassword);
+  const first = new SantaStore(filename, adminName, adminPassword, roster);
   const [user, other] = await participants(first, 2);
   first.enableDraw(admin(first));
   const assignments = first.db.prepare('SELECT * FROM assignments ORDER BY giver').all();
   first.db.exec('DROP TRIGGER approved_name_update');
   first.db.prepare("UPDATE users SET name = ?, approved_person_id = NULL WHERE id = ?").run('Legacy nickname', user.id);
   first.db.close();
-  const db = new SantaStore(filename, adminName, adminPassword);
+  const db = new SantaStore(filename, adminName, adminPassword, roster);
   t.after(() => db.db.close());
   assert.equal(db.needsRosterReview(), true);
   assert.equal(db.approvedPeople().length, 26);
@@ -418,7 +431,7 @@ test('migration removes stored email addresses and preserves existing accounts, 
   const token = 'legacy-session-token';
   legacy.prepare('INSERT INTO sessions VALUES(?,?,?)').run(createHash('sha256').update(token).digest('hex'), 'legacy-a', Date.now() + 60_000);
   legacy.close();
-  const db = new SantaStore(filename, adminName, adminPassword);
+  const db = new SantaStore(filename, adminName, adminPassword, roster);
   t.after(() => db.db.close());
   assert.equal(db.db.prepare('PRAGMA table_info(users)').all().some(c => c.name === 'email'), false);
   assert.equal((await db.login(roster[0].toUpperCase(), password)).id, 'legacy-a');
@@ -625,10 +638,10 @@ test('network rate limits can allow team activity while account-specific counter
 test('sign-in identifies unapproved names, unregistered approved people, and incorrect passwords', async t => {
   const db = create(); t.after(() => db.db.close());
   await assert.rejects(db.login('Unlisted Person', password), { message: 'Name not recognized. Enter your full name as shown in your Aria Profile.' });
-  await assert.rejects(db.login('  Test Participant 23  ', password), { message: 'No account exists for this name. Please create an account.' });
+  await assert.rejects(db.login('  TEST   PARTICIPANT   23  ', password), { message: 'No account exists for this name. Please create an account.' });
   const user = await db.register('Test Participant 23', password);
   await assert.rejects(db.login(user.name, 'incorrect-password'), { message: 'Incorrect password. Try again or reset your password.' });
-  assert.equal((await db.login('Test Participant 23', password)).id, user.id);
+  assert.equal((await db.login('TEST PARTICIPANT 23', password)).id, user.id);
   await assert.rejects(db.login(adminName, 'incorrect-password'), { message: 'Incorrect password. Try again or reset your password.' });
   assert.equal((await db.login(adminName, adminPassword)).admin, true);
 });

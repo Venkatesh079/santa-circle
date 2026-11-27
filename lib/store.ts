@@ -4,7 +4,6 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
-import roster from "./roster.json" with { type: "json" };
 import recoveryQuestions from "./recovery-questions.json" with { type: "json" };
 
 export type User = { id: string; name: string; admin: boolean; wishlist: string };
@@ -30,7 +29,7 @@ export const SESSION_SECONDS = 7 * 24 * 60 * 60;
 export class SantaStore {
   db: DatabaseSync;
   readonly filename: string;
-  constructor(filename: string, adminName: string, adminPassword: string) {
+  constructor(filename: string, adminName: string, adminPassword: string, initialApprovedNames: readonly string[] = []) {
     this.filename = filename;
     if (filename !== ":memory:") mkdirSync(dirname(resolve(filename)), { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(filename);
@@ -77,10 +76,11 @@ export class SantaStore {
     this.transaction(() => {
       if (!this.db.prepare("PRAGMA table_info(exchange)").all().some(column => column.name === "revision"))
         this.db.exec("ALTER TABLE exchange ADD COLUMN revision INTEGER NOT NULL DEFAULT 0");
-      // Seed once: restarting must not restore names the administrator removed.
+      // Optional runtime seed. Production starts empty; names belong in the DB.
+      // Restarting must not restore names the administrator removed.
       if (!this.db.prepare("SELECT 1 FROM app_settings WHERE key = 'roster_seeded'").get()) {
         const seed = this.db.prepare("INSERT OR IGNORE INTO approved_people(name) VALUES(?)");
-        roster.forEach(name => seed.run(name));
+        initialApprovedNames.forEach(name => seed.run(name));
         this.db.prepare("INSERT INTO app_settings(key,value) VALUES('roster_seeded','1')").run();
       }
       const columns = this.db.prepare("PRAGMA table_info(users)").all();
