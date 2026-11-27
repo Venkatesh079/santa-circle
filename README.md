@@ -63,7 +63,7 @@ The tests exercise password hashing, duplicate/racing registrations, admin restr
 ## Deploy on Vercel with Supabase
 
 1. Create or select a Supabase project. In its SQL Editor, run **only** `supabase/migrations/202611270001_santa_app.sql` for this version of the app. Run it once. It creates a separate private `santa_app` schema; it does not modify the historical `santa_private` schema. Runtime requests do not create or migrate tables.
-2. In Supabase **Connect**, select the **Transaction pooler** connection string (port 6543). Use the actual database password, URL-encoded when necessary. Use TLS with certificate verification (`sslmode=verify-full`, or configure Supabase's CA certificate if your project requires it). This driver uses unnamed parameterized queries and transaction-scoped settings, compatible with transaction pooling. See [Supabase connection documentation](https://supabase.com/docs/guides/database/connecting-to-postgres).
+2. In Supabase **Connect**, select the **Transaction pooler** connection string (port 6543). Use the actual database password, URL-encoded when necessary. Use TLS with certificate verification (`sslmode=verify-full`, or configure Supabase's CA certificate if your project requires it). The app adds `sslmode=verify-full` automatically when a hosted connection string omits SSL configuration. Local loopback development connections can remain unencrypted. This driver uses unnamed parameterized queries and transaction-scoped settings, compatible with transaction pooling. See [Supabase connection documentation](https://supabase.com/docs/guides/database/connecting-to-postgres).
 3. In Vercel project environment variables, set:
 
    | Variable | Value |
