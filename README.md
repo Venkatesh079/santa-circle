@@ -36,7 +36,7 @@ On an existing database, accounts whose full names already match are linked auto
 
 ## Database and passwords
 
-The original app used **Supabase / PostgreSQL** when configured and a temporary demo otherwise. This simplified branch uses a persistent **SQLite** file at `data/santa.sqlite`. The file is created automatically on first signup-page or database access and persists across app restarts. It stores accounts, bcrypt password hashes, wishlists, sessions, the draw status, and assignments. Local database files and `.env.local` are ignored by Git. Historical Supabase migrations remain under `supabase/migrations` for reference; this branch does not execute them or connect to Supabase, and existing Supabase users/data are not migrated.
+The app uses **Supabase PostgreSQL** when `DATABASE_URL` is configured, including on Vercel. Without it, local development uses a persistent **SQLite** file at `data/santa.sqlite`. The file is created automatically on first signup-page or database access and persists across app restarts. It stores accounts, bcrypt password hashes, wishlists, sessions, the draw status, and assignments. Local database files and `.env.local` are ignored by Git. The current PostgreSQL schema is `supabase/migrations/202611270001_santa_app.sql`. Earlier migrations describe a different app and are not required for this version. Existing SQLite and historical Supabase users/data are not automatically migrated.
 
 Passwords use bcrypt with a random salt and cost 12; plaintext passwords are never stored. Passwords must contain at least 8 characters and fit bcrypt’s 72-byte UTF-8 limit. Sessions use random tokens in HttpOnly, SameSite cookies; only SHA-256 token hashes are stored in the database. Sessions expire after seven days and are revoked on sign-out. Login attempts are limited to ten per account name within 15 minutes, with that counter cleared after successful login. A broader limit of 200 authentication attempts per IP within 15 minutes protects against name-spraying without pooling everyone into the ten-attempt account limit. A recovery question and answer are optional at signup. Leave both blank to skip them; if either is provided, both are required. Recovery answers are normalized for case and whitespace and stored only as bcrypt hashes with cost 12. Participants can open **Reset password** from sign-in and enter their Aria Profile name, the question they selected, their answer, and a new password with confirmation. The old password is not required. Participants without a recovery hint are directed to contact their administrator for a one-time reset link. Reset requests are throttled by name and IP. A successful reset revokes all sessions for that participant. Recovery hints can only be set during registration. There is no option to add or change them afterward. The administrator can press **Generate reset link** beside a participant in the admin dashboard, copy the private link, and share it directly with that person. It works even if the participant skipped recovery setup. The participant sees their name prefilled and read-only, then chooses and confirms their own new password. The admin never enters the password. Links expire after 30 minutes, and generating another link for the same participant invalidates the previous one. Opening or previewing a link does not consume it. Only a successful password reset consumes it, atomically with updating the bcrypt password hash and signing out that participant's existing sessions. Failed validation or a failed database transaction leaves the link available until expiry. Only token hashes are stored in the database; the browser fragment carries the token so it is not sent in request URLs or referrers. Both reset paths preserve the account, wishlist, recovery hint, and draw assignments. A recovery-answer reset also invalidates outstanding reset links.
 
@@ -60,13 +60,43 @@ npm run build
 
 The tests exercise password hashing, duplicate/racing registrations, admin restrictions, disabled draws, complete and stable assignments, rollback, sessions, persistent storage, throttling, approved-name validation, simultaneous claims on a single roster name, legacy roster review, recovery-answer validation and hashing, password resets, and competing draws in separate processes. GitHub Actions runs tests, a production build, and type checking.
 
-## Hosting later
+## Deploy on Vercel with Supabase
 
-This setup needs a Node.js server with a persistent writable disk. Set a private `ADMIN_PASSWORD` (required in production), optionally `ADMIN_NAME`, and `DATABASE_PATH` pointing to that disk. Use HTTPS in production; session cookies are Secure in production builds. For a local production-build check over HTTP, use a browser that supports Secure localhost cookies or use the development server for the full account flow.
+1. Create or select a Supabase project. In its SQL Editor, run **only** `supabase/migrations/202611270001_santa_app.sql` for this version of the app. Run it once. It creates a separate private `santa_app` schema; it does not modify the historical `santa_private` schema. Runtime requests do not create or migrate tables.
+2. In Supabase **Connect**, select the **Transaction pooler** connection string (port 6543). Use the actual database password, URL-encoded when necessary. Use TLS with certificate verification (`sslmode=verify-full`, or configure Supabase's CA certificate if your project requires it). This driver uses unnamed parameterized queries and transaction-scoped settings, compatible with transaction pooling. See [Supabase connection documentation](https://supabase.com/docs/guides/database/connecting-to-postgres).
+3. In Vercel project environment variables, set:
+
+   | Variable | Value |
+   | --- | --- |
+   | `DATABASE_URL` | Private PostgreSQL transaction pooler URI from step 2 |
+   | `ADMIN_PASSWORD` | A private password, 8 to 72 UTF-8 bytes |
+   | `ADMIN_NAME` | Optional; defaults to `admin` |
+   | `APP_URL` | Your public HTTPS origin |
+
+   Enable the variables for Production (and Preview if needed). Use a separate database/project for preview deployments so testing cannot alter the real exchange. Do not expose `DATABASE_URL` with a `NEXT_PUBLIC_` prefix. No Supabase anonymous or service-role API key is needed: access is through the server-side database connection, and the app retains its own name/password login.
+4. Redeploy. Sign in as administrator, add approved participant names, then let participants register. The administrator is initialized on the first database request. A missing schema, invalid connection string, or missing password fails without falling back to temporary storage.
+
+The PostgreSQL backend preserves shared accounts, sessions, rate limits, wishlists, and assignments across Vercel instances. Transactions serialize exchange changes by locking the exchange row. Before a protected draw reset, it saves a private JSON recovery snapshot in `santa_app.draw_backups` in the same transaction as the reset and its audit record. Snapshot failure rolls back the reset. The `backup_path` audit value is a reference such as `postgres:draw_backups/<id>`, not a file path. These archives contain sensitive account data and matches; they have no browser API access. Configure database backups separately in Supabase. Restoring an archive requires deliberate database maintenance; no automatic restore tool is included.
+
+This setup starts with an empty hosted exchange. It does not copy `data/santa.sqlite` or users from the historical Supabase app. Back up any existing exchange before planning a separate data migration.
+
+## Local SQLite hosting
+
+Without `DATABASE_URL`, a Node.js server with a persistent writable disk can continue using SQLite. Set `ADMIN_PASSWORD`, optionally `ADMIN_NAME`, and `DATABASE_PATH` pointing to that disk. Use HTTPS in production. Vercel explicitly requires `DATABASE_URL` and never falls back to SQLite or `/tmp`.
 
 ```sh
 npm run build
 ADMIN_PASSWORD='replace-with-a-private-password' npm start
 ```
 
-Back up the SQLite database with the server stopped, including any WAL/SHM sidecar files. Keep the database outside publicly served directories. When hosting behind a proxy, configure it to replace `X-Forwarded-For` for authentication throttling. An ephemeral filesystem such as a standard Vercel function will not preserve this database; use a persistent server/volume or add a hosted database before that deployment.
+Back up SQLite with the server stopped, including WAL/SHM sidecar files. Keep the database outside publicly served directories. Configure proxies to replace `X-Forwarded-For` for authentication throttling.
+
+## PostgreSQL integration verification
+
+Apply the current migration to a **disposable** PostgreSQL database first (the migration expects Supabase's `anon` and `authenticated` roles). Then run:
+
+```sh
+TEST_DATABASE_URL='postgresql://localhost/disposable_santa_test' node --experimental-strip-types --test tests/postgres.test.mjs
+```
+
+This test clears all current `santa_app` data in that database. It covers competing registrations/draws/resets, private snapshots and rollback, cross-instance sessions, password recovery, and browser-role access denial. Normal `npm test` skips this integration test when `TEST_DATABASE_URL` is unset.

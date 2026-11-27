@@ -6,13 +6,8 @@ import { createHash, randomBytes, randomInt, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import recoveryQuestions from "./recovery-questions.json" with { type: "json" };
 
-export type User = { id: string; name: string; admin: boolean; wishlist: string };
-type UserRow = Omit<User, "admin"> & { admin: number; password_hash: string; recovery_question: string | null; recovery_answer_hash: string | null };
-export type Match = { name: string; wishlist: string };
-export class AppError extends Error {
-  readonly code = "SANTA_VALIDATION";
-  name = "AppError";
-}
+import { AppError, type User, type UserRow, type Match } from "./store-types.ts";
+export { AppError, type User, type Match } from "./store-types.ts";
 const publicUser = (row: UserRow): User => ({ id: row.id, name: row.name, admin: Boolean(row.admin), wishlist: row.wishlist });
 const tokenHash = (token: string) => createHash("sha256").update(token).digest("hex");
 const normalizeName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
@@ -24,7 +19,8 @@ function validateRecovery(question: string, answer: string) {
     throw new AppError("Use a recovery answer with at least 2 characters and at most 72 UTF-8 bytes.");
   return normalized;
 }
-export const SESSION_SECONDS = 7 * 24 * 60 * 60;
+export { SESSION_SECONDS } from "./store-types.ts";
+import { SESSION_SECONDS } from "./store-types.ts";
 
 export class SantaStore {
   db: DatabaseSync;

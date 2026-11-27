@@ -15,12 +15,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const user = await requireUser();
   const { saved, reveal, error } = await searchParams;
   const resetToken = user.admin && saved === "reset-link" ? (await cookies()).get("santa-reset-link")?.value : undefined;
-  const resetInfo = resetToken ? store().resetLinkInfo(resetToken) : undefined;
-  const enabled = store().enabled();
-  const recipient = !user.admin && enabled && reveal === "1" ? store().reveal(user.id) : undefined;
-  const participants = user.admin ? store().participants() : [];
+  const resetInfo = resetToken ? (await store().resetLinkInfo(resetToken)) : undefined;
+  const enabled = (await store().enabled());
+  const recipient = !user.admin && enabled && reveal === "1" ? (await store().reveal(user.id)) : undefined;
+  const participants = user.admin ? (await store().participants()) : [];
   const unlinked = participants.filter(p => p.approved_person_id === null);
-  const approvedPeople = user.admin ? store().approvedPeople() : [];
+  const approvedPeople = user.admin ? (await store().approvedPeople()) : [];
   const registeredPeople = new Set(participants.map(person => person.approved_person_id));
   const available = approvedPeople.filter(person => !registeredPeople.has(person.id));
   return <PageFrame wide title={user.admin ? "Administrator" : `Hello, ${user.name}`} description={user.admin ? "Enable the draw when everyone has registered and saved their wishlist. You do not participate in the exchange." : enabled ? "Wishlists are locked. Draw your secret recipient when you’re ready." : "Add a few gift ideas, then draw your secret recipient when it’s time."}>
@@ -56,7 +56,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         {!enabled && participants.length < 2 && <p className="hint">At least two participants must register first.</p>}
       </section>
       <section className="panel"><h2>Participants ({participants.length})</h2><p>Only participants appear here. The administrator is excluded.</p>{participants.length ? <ul className="people">{participants.map(p => <li className="admin-person" key={p.id}><span className="avatar">{p.name.slice(0, 1)}</span><div>{p.name}</div><AdminPasswordReset participantId={p.id} name={p.name} /></li>)}</ul> : <p>No participants yet. Share this app’s address with your team.</p>}<RefreshStatus /></section>
-      {enabled && <DrawReset key={store().drawRevision()} revision={store().drawRevision()} participantCount={participants.length} />}
+      {enabled && <DrawReset key={(await store().drawRevision())} revision={(await store().drawRevision())} participantCount={participants.length} />}
     </> : <div className="dashboard-grid">
       <section className="panel"><h2>My wishlist</h2>{enabled ? <><p className="notice">Wishlists are locked because the draw has started.</p><p className="wishlist-text">{user.wishlist || "You did not add a wishlist before the draw started."}</p></> : <><p>Gift ideas, links, interests, sizes, or things to avoid. Save your wishlist before the administrator enables the draw; it will be locked afterward.</p><WishlistEditor initiallySaved={saved === "wishlist"} /></>}</section>
       <section className="panel"><h2>My draw</h2><Draw enabled={enabled} recipient={recipient} />{!enabled && <div className="draw-status-actions"><RefreshStatus /></div>}</section>

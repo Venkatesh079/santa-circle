@@ -23,7 +23,7 @@ const themeScript =
   "try{document.documentElement.dataset.theme=localStorage.getItem('santa-theme')||'light'}catch{}";
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await currentUser();
-  const sessionKey = user ? `${user.id}:${store().drawRevision()}` : "guest";
+  const sessionKey = user ? `${user.id}:${(await store().drawRevision())}` : "guest";
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>

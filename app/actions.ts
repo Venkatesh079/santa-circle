@@ -44,7 +44,7 @@ export async function authenticate(mode: "signup" | "signin", fd: FormData): Pro
     // Hosted deployments must use a trusted proxy that replaces this header.
     const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
     const { name, password } = parsed.data;
-    store().throttle("auth-ip:" + ip, 200);
+    (await store().throttle("auth-ip:" + ip, 200));
     const user = mode === "signup"
       ? await store().register(name, password, recovery?.data?.recoveryQuestion, recovery?.data?.recoveryAnswer)
       : await store().login(name, password);
@@ -60,11 +60,11 @@ export async function act(op: "wishlist" | "enable" | "draw", fd: FormData): Pro
     if (op === "wishlist") {
       const wishlist = z.string().max(5000, "Keep your wishlist under 5,000 characters.").safeParse(fd.get("wishlist"));
       if (!wishlist.success) throw new Error("Invalid wishlist.");
-      store().saveWishlist(user.id, wishlist.data);
+      (await store().saveWishlist(user.id, wishlist.data));
     } else if (op === "enable") {
-      store().enableDraw(user.id);
+      (await store().enableDraw(user.id));
     } else if (op === "draw") {
-      store().reveal(user.id);
+      (await store().reveal(user.id));
     } else {
       throw new Error("Unknown action.");
     }
@@ -81,7 +81,7 @@ export async function saveWishlist(fd: FormData): Promise<{ error?: string; wish
   const parsed = z.string().max(5000, "Keep your wishlist under 5,000 characters.").safeParse(fd.get("wishlist"));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   try {
-    store().saveWishlist(user.id, parsed.data);
+    (await store().saveWishlist(user.id, parsed.data));
     return { wishlist: parsed.data.trim() };
   } catch (cause) { return { error: errorMessage(cause) }; }
 }
@@ -97,7 +97,7 @@ export async function linkParticipant(fd: FormData) {
   let error: string | undefined;
   try {
     const fields = z.object({ userId: z.uuid(), personId: z.coerce.number().int().positive() }).parse(Object.fromEntries(fd));
-    store().linkParticipant(user.id, fields.userId, fields.personId);
+    (await store().linkParticipant(user.id, fields.userId, fields.personId));
   } catch (cause) { error = errorMessage(cause); }
   redirect(error ? "/dashboard?error=" + encodeURIComponent(error) : "/dashboard?saved=roster");
 }
@@ -107,7 +107,7 @@ export async function addPerson(fd: FormData) {
   let error: string | undefined;
   const name = credentials.shape.name.safeParse(fd.get("name"));
   if (!name.success) redirect("/dashboard?error=" + encodeURIComponent(name.error.issues[0].message));
-  try { store().addPerson(user.id, name.data); }
+  try { (await store().addPerson(user.id, name.data)); }
   catch (cause) { error = errorMessage(cause); }
   redirect(error ? "/dashboard?error=" + encodeURIComponent(error) : "/dashboard?saved=person-added");
 }
@@ -117,7 +117,7 @@ export async function removePerson(fd: FormData) {
   let error: string | undefined;
   const parsed = z.object({ personId: z.coerce.number().int().positive(), name: credentials.shape.name }).safeParse(Object.fromEntries(fd));
   if (!parsed.success) redirect("/dashboard?error=" + encodeURIComponent("Select a person from the approved list."));
-  try { store().removePerson(user.id, parsed.data.personId, parsed.data.name); }
+  try { (await store().removePerson(user.id, parsed.data.personId, parsed.data.name)); }
   catch (cause) { error = errorMessage(cause); }
   redirect(error ? "/dashboard?error=" + encodeURIComponent(error) : "/dashboard?saved=person-removed");
 }
@@ -153,7 +153,7 @@ export async function resetPassword(fd: FormData) {
   let error: string | undefined;
   try {
     const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-    store().throttle("recovery-reset-ip:" + ip);
+    (await store().throttle("recovery-reset-ip:" + ip));
     await store().resetPassword(name.data, recovery.data.recoveryQuestion, recovery.data.recoveryAnswer, parsed.data);
     await endSession();
   } catch (cause) { error = errorMessage(cause); }
@@ -167,7 +167,7 @@ export async function generatePasswordResetLink(fd: FormData) {
   let error: string | undefined;
   try {
     buildPasswordResetLink(""); // Validate configuration before replacing an existing link.
-    const token = store().issuePasswordReset(admin.id, id.data);
+    const token = (await store().issuePasswordReset(admin.id, id.data));
     (await cookies()).set("santa-reset-link", token, {
       httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production",
       path: "/dashboard", maxAge: 30 * 60,
@@ -178,7 +178,7 @@ export async function generatePasswordResetLink(fd: FormData) {
 export async function lookupPasswordResetLink(fd: FormData): Promise<{ name: string; expires: number } | { error: string }> {
   const token = fd.get("token");
   if (typeof token !== "string") return { error: "This reset link is invalid or has expired." };
-  const info = store().resetLinkInfo(token);
+  const info = (await store().resetLinkInfo(token));
   return info ?? { error: "This reset link has already been used or has expired. Ask the administrator for a new link." };
 }
 export async function completePasswordReset(fd: FormData) {
